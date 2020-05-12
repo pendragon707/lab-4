@@ -17,14 +17,17 @@ static const int circle_wid = 100;
 static const int circle_hei = 100;
 
 int window_wid, window_hei;
-std::wstring echo;
 HDC window_memdc = 0;
 HBITMAP window_bitmap = 0;
 
 HANDLE circle_thread, circle_start_event;
 HANDLE text_thread, text_start_event, text_end_event;
 
+std::wstring echo;
+Font* font = 0;
+SolidBrush* text_brush = 0;
 HBRUSH bg_brush = 0;
+
 int WINAPI _tWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPTSTR lpCmdLine, int nShowCmd)
 {
   (void)hPrevInstance;
@@ -96,10 +99,12 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
       text_end_event = CreateEvent(0, FALSE, FALSE, TEXT("TextEndEvent"));
       text_thread = CreateThread(0, 0, text_thread_proc, 0, 0, 0);
 
+      font = new Font(FontFamily::GenericMonospace(), 40, FontStyleRegular, UnitPixel);
+      text_brush = new SolidBrush(Color::White);
+
       SetTimer(hWnd, 0, 33, 0);
       break;
     }
-
 	    case WM_SIZE:
     {
       window_wid = LOWORD(lParam);
@@ -115,6 +120,12 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
       SelectObject(window_memdc, window_bitmap);
 
       ReleaseDC(hWnd, dc);
+      break;
+    }
+	 case WM_CHAR:
+    {
+      wchar_t c = (wchar_t)wParam;
+      echo += c;
       break;
     }
 	    case WM_PAINT:
@@ -146,6 +157,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
 
       if (window_memdc) DeleteDC(window_memdc);
       if (window_bitmap) DeleteObject(window_bitmap);
+
+	  if (font) delete font;
+      if (text_brush) delete text_brush;
 
       PostQuitMessage(0);
       break;
@@ -180,6 +194,24 @@ DWORD WINAPI text_thread_proc(void*)
   for (;;)
   {
     WaitForSingleObject(text_start_event, INFINITE);
+
+    if (window_memdc)
+    {
+      Graphics graphics(window_memdc);
+
+      const wchar_t* str = echo.c_str();
+
+      RectF box(0, 0, 0, 0);
+
+      const size_t len = echo.length();
+        graphics.MeasureString(str, len, font,
+          RectF(0, 0, window_wid + 1.f, window_hei + 1.f), &box);
+
+      graphics.DrawString(str, len, font,
+        RectF(window_wid / 2 - box.Width / 2, window_hei / 2 - box.Height / 2, box.Width, box.Height),
+        StringFormat::GenericDefault(),
+        text_brush);
+    }
 
     SetEvent(text_end_event);
   }
