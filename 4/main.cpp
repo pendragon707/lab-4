@@ -13,8 +13,13 @@ DWORD WINAPI text_thread_proc(void*);
 
 static const TCHAR classname[] = TEXT("Lab4");
 static const TCHAR title[] = TEXT("Lab4");
+static const int circle_wid = 100;
+static const int circle_hei = 100;
 
 int window_wid, window_hei;
+std::wstring echo;
+HDC window_memdc = 0;
+HBITMAP window_bitmap = 0;
 
 HANDLE circle_thread, circle_start_event;
 HANDLE text_thread, text_start_event, text_end_event;
@@ -91,8 +96,32 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
       text_end_event = CreateEvent(0, FALSE, FALSE, TEXT("TextEndEvent"));
       text_thread = CreateThread(0, 0, text_thread_proc, 0, 0, 0);
 
+	  window_wid = LOWORD(lParam);
+      window_hei = HIWORD(lParam);
+
+	  const HDC dc = GetDC(hWnd);
+
+	  window_memdc = CreateCompatibleDC(dc);
+      window_bitmap = CreateCompatibleBitmap(dc, window_wid, window_hei);
+      SelectObject(window_memdc, window_bitmap);
+
+	  ReleaseDC(hWnd, dc);
+
       SetTimer(hWnd, 0, 33, 0);
       break;
+    }
+	    case WM_PAINT:
+    {
+      SetEvent(circle_start_event);
+      WaitForSingleObject(text_end_event, INFINITE);
+
+      PAINTSTRUCT ps;
+      const HDC hdc = BeginPaint(hWnd, &ps);
+
+	  BitBlt(hdc, 0, 0, window_wid, window_hei, window_memdc, 0, 0, SRCCOPY);
+
+      EndPaint(hWnd, &ps);
+      return TRUE;
     }
 	 case WM_TIMER:
     {
@@ -101,6 +130,16 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
     }
     case WM_DESTROY:
     {
+	  TerminateThread(circle_thread, 0);
+      TerminateThread(text_thread, 0);
+	  
+	  CloseHandle(circle_start_event);
+      CloseHandle(text_start_event);
+      CloseHandle(text_end_event);
+
+      if (window_memdc) DeleteDC(window_memdc);
+      if (window_bitmap) DeleteObject(window_bitmap);
+
       PostQuitMessage(0);
       break;
     }
@@ -110,9 +149,20 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
 
 DWORD WINAPI circle_thread_proc(void*)
 {
+  int circle_x = 0;
   for (;;)
   {
     WaitForSingleObject(circle_start_event, INFINITE);
+
+	 if (window_memdc)
+     {
+       if (circle_x + circle_wid > window_wid) circle_x = 0;
+	 
+       Graphics graphics(window_memdc);
+       graphics.Clear(Color(72, 72, 72));
+       SolidBrush b(Color(255, 0, 0));
+       graphics.FillEllipse(&b, circle_x++, window_hei / 2 - circle_hei / 2, circle_wid, circle_hei);
+     }
 
     SetEvent(text_start_event);
   }
