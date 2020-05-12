@@ -96,18 +96,25 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
       text_end_event = CreateEvent(0, FALSE, FALSE, TEXT("TextEndEvent"));
       text_thread = CreateThread(0, 0, text_thread_proc, 0, 0, 0);
 
-	  window_wid = LOWORD(lParam);
+      SetTimer(hWnd, 0, 33, 0);
+      break;
+    }
+
+	    case WM_SIZE:
+    {
+      window_wid = LOWORD(lParam);
       window_hei = HIWORD(lParam);
 
-	  const HDC dc = GetDC(hWnd);
+      if (window_memdc) DeleteDC(window_memdc);
+      if (window_bitmap) DeleteObject(window_bitmap);
 
-	  window_memdc = CreateCompatibleDC(dc);
+      const HDC dc = GetDC(hWnd);
+
+      window_memdc = CreateCompatibleDC(dc);
       window_bitmap = CreateCompatibleBitmap(dc, window_wid, window_hei);
       SelectObject(window_memdc, window_bitmap);
 
-	  ReleaseDC(hWnd, dc);
-
-      SetTimer(hWnd, 0, 33, 0);
+      ReleaseDC(hWnd, dc);
       break;
     }
 	    case WM_PAINT:
